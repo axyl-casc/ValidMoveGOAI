@@ -1,0 +1,24 @@
+{
+  "name": "validmovegoai",
+  "version": "1.0.0",
+  "description": "A simple GO AI that can make valid moves.",
+  "main": "app.js",
+  "bin": "app.js",
+
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/axyl-casc/ValidMoveGOAI.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/axyl-casc/ValidMoveGOAI/issues"
+  },
+  "homepage": "https://github.com/axyl-casc/ValidMoveGOAI#readme",
+  "dependencies": {
+    "tenuki": "^0.3.1"
+  }
+}
