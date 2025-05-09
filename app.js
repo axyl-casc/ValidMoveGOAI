@@ -4,8 +4,9 @@ const readline = require("readline");
 const { Game } = require("tenuki");
 
 // Create the Tenuki game without a DOM element
-let game = new Game();
-
+let game = new Game({
+	scoring: "area"
+  });
 const rl = readline.createInterface({
 	input: process.stdin,
 	output: process.stdout,
@@ -26,32 +27,54 @@ function gtpToCoords(moveStr) {
 
 function generateMove() {
 	const boardSize = game.boardSize;
-	const totalPoints = boardSize * boardSize;
-
-	// Create a shuffled list of all (x, y) coordinates
 	const allCoords = [];
+
 	for (let y = 0; y < boardSize; y++) {
 		for (let x = 0; x < boardSize; x++) {
-			allCoords.push({ x, y });
+			if (game.intersectionAt(y, x).value === "empty") {
+				allCoords.push({ x, y });
+			}
 		}
 	}
 
-	// Shuffle using Fisher-Yates
+	// Shuffle to randomize tiebreaks between equal score + distance
 	for (let i = allCoords.length - 1; i > 0; i--) {
 		const j = Math.floor(Math.random() * (i + 1));
 		[allCoords[i], allCoords[j]] = [allCoords[j], allCoords[i]];
 	}
 
+	const currentColor = game.currentPlayer();
+	const center = (boardSize - 1) / 2;
+	const moveScores = [];
+
 	for (const { x, y } of allCoords) {
-		const intersection = game.intersectionAt(y, x);
-		if (intersection.value === "empty" && game.playAt(y, x)) {
-			return coordsToGtp(x, y);
+		if (game.playAt(y, x)) {
+			const score = game.score(); // Not reliable mid-game, but used anyway
+			const dx = x - center;
+			const dy = y - center;
+			const dist2 = dx * dx + dy * dy;
+			moveScores.push({ x, y, score, dist2 });
+			game.undo();
 		}
 	}
 
-	game.pass();
-	return "pass";
+	if (moveScores.length === 0) {
+		game.pass();
+		return "pass";
+	}
+
+	// Sort by score descending, then distance ascending
+	moveScores.sort((a, b) => {
+		const diff = b.score[currentColor] - a.score[currentColor];
+		return diff !== 0 ? diff : a.dist2 - b.dist2;
+	});
+
+	const best = moveScores[0];
+	game.playAt(best.y, best.x);
+	return coordsToGtp(best.x, best.y);
 }
+
+
 
 rl.on("line", (line) => {
 	const trimmed = line.trim();
@@ -67,7 +90,7 @@ rl.on("line", (line) => {
 			break;
 
 		case "name":
-			respond("RandomMove");
+			respond("AtariBot");
 			break;
 
 		case "version":
