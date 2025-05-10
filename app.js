@@ -24,34 +24,49 @@ function gtpToCoords(moveStr) {
 	return { x, y };
 }
 
+// Random Move Bot
 function generateMove() {
 	const boardSize = game.boardSize;
-	const totalPoints = boardSize * boardSize;
-
-	// Create a shuffled list of all (x, y) coordinates
 	const allCoords = [];
+
 	for (let y = 0; y < boardSize; y++) {
 		for (let x = 0; x < boardSize; x++) {
-			allCoords.push({ x, y });
+			if (game.intersectionAt(y, x).value === "empty") {
+				allCoords.push({ x, y });
+			}
 		}
 	}
 
-	// Shuffle using Fisher-Yates
+	// Shuffle to randomize ties
 	for (let i = allCoords.length - 1; i > 0; i--) {
 		const j = Math.floor(Math.random() * (i + 1));
 		[allCoords[i], allCoords[j]] = [allCoords[j], allCoords[i]];
 	}
 
+	const currentColor = game.currentPlayer();
+	const moveScores = [];
+
 	for (const { x, y } of allCoords) {
-		const intersection = game.intersectionAt(y, x);
-		if (intersection.value === "empty" && game.playAt(y, x)) {
-			return coordsToGtp(x, y);
+		if (game.playAt(y, x)) {
+			const score = game.score(); // Scoring midgame, may be noisy
+			moveScores.push({ x, y, score });
+			game.undo();
 		}
 	}
 
-	game.pass();
-	return "pass";
+	if (moveScores.length === 0) {
+		game.pass();
+		return "pass";
+	}
+
+	// Sort by score descending only
+	moveScores.sort((a, b) => b.score[currentColor] - a.score[currentColor]);
+
+	const best = moveScores[0];
+	game.playAt(best.y, best.x);
+	return coordsToGtp(best.x, best.y);
 }
+
 
 rl.on("line", (line) => {
 	const trimmed = line.trim();
