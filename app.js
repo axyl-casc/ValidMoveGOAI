@@ -1,72 +1,22 @@
 #!/usr/bin/env node
 
+const { coordsToGtp, gtpToCoords } = require('./utils');
+
+const randomMode = process.argv.includes("-random");
+
 const readline = require("readline");
 const { Game } = require("tenuki");
+const generateMove = require('./genmove');
 
 // Create the Tenuki game without a DOM element
-let game = new Game();
-
+let game = new Game({
+	scoring: "area"
+  });
 const rl = readline.createInterface({
 	input: process.stdin,
 	output: process.stdout,
 	terminal: false,
 });
-
-function coordsToGtp(x, y) {
-	const letters = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
-	return letters[x] + (game.boardSize - y);
-}
-
-function gtpToCoords(moveStr) {
-	const letters = "ABCDEFGHJKLMNOPQRSTUVWXYZ";
-	const x = letters.indexOf(moveStr[0].toUpperCase());
-	const y = game.boardSize - Number.parseInt(moveStr.slice(1));
-	return { x, y };
-}
-
-// Random Move Bot
-function generateMove() {
-	const boardSize = game.boardSize;
-	const allCoords = [];
-
-	for (let y = 0; y < boardSize; y++) {
-		for (let x = 0; x < boardSize; x++) {
-			if (game.intersectionAt(y, x).value === "empty") {
-				allCoords.push({ x, y });
-			}
-		}
-	}
-
-	// Shuffle to randomize ties
-	for (let i = allCoords.length - 1; i > 0; i--) {
-		const j = Math.floor(Math.random() * (i + 1));
-		[allCoords[i], allCoords[j]] = [allCoords[j], allCoords[i]];
-	}
-
-	const currentColor = game.currentPlayer();
-	const moveScores = [];
-
-	for (const { x, y } of allCoords) {
-		if (game.playAt(y, x)) {
-			const score = game.score(); // Scoring midgame, may be noisy
-			moveScores.push({ x, y, score });
-			game.undo();
-		}
-	}
-
-	if (moveScores.length === 0) {
-		game.pass();
-		return "pass";
-	}
-
-	// Sort by score descending only
-	moveScores.sort((a, b) => b.score[currentColor] - a.score[currentColor]);
-
-	const best = moveScores[0];
-	game.playAt(best.y, best.x);
-	return coordsToGtp(best.x, best.y);
-}
-
 
 rl.on("line", (line) => {
 	const trimmed = line.trim();
@@ -82,11 +32,11 @@ rl.on("line", (line) => {
 			break;
 
 		case "name":
-			respond("RandomMove");
+			respond("AtariBot");
 			break;
 
 		case "version":
-			respond("0.1");
+			respond("0.2");
 			break;
 
 		case "boardsize": {
@@ -130,24 +80,39 @@ rl.on("line", (line) => {
 		}
 
 		case "play": {
-			const [color, moveStr] = args;
+			const [colorStr, moveStr] = args;
 			if (moveStr.toLowerCase() === "pass") {
+				// Ensure turn matches color before passing
+				if (game.currentPlayer() !== colorStr.toLowerCase()) {
+					game.playAt(-1, -1); // dummy move to advance to correct color
+				}
 				game.pass();
 				respond("");
 				break;
 			}
 			const { x, y } = gtpToCoords(moveStr);
+
+			// Adjust internal turn if out of sync
+			if (game.currentPlayer() !== colorStr.toLowerCase()) {
+				game.playAt(-1, -1); // dummy move to switch turn
+			}
+
 			const success = game.playAt(y, x);
 			respond(success ? "" : "? illegal move");
 			break;
 		}
 
+
 		case "genmove": {
-			const color = args[0];
-			const move = generateMove();
+			const color = args[0].toLowerCase(); // "b" or "w"
+			if (game.currentPlayer() !== (color === "b" ? "black" : "white")) {
+				game.pass();
+			}
+			const move = generateMove(game, coordsToGtp, randomMode);
 			respond(move);
 			break;
 		}
+
 
 		case "quit":
 			rl.close();
