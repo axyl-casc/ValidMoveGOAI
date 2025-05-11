@@ -19,6 +19,8 @@ const rl = readline.createInterface({
 });
 
 rl.on("line", (line) => {
+	//console.log(`Game State: ${game.isOver() ? "Game Over" : "In Progress"}`);
+	//console.log(`Received: ${line}`);
 	const trimmed = line.trim();
 	if (!trimmed) return;
 
@@ -78,23 +80,45 @@ rl.on("line", (line) => {
 			respond(`\n${output}`);
 			break;
 		}
-
 		case "play": {
 			const [colorStr, moveStr] = args;
-			if (moveStr.toLowerCase() === "pass") {
-				// Ensure turn matches color before passing
-				if (game.currentPlayer() !== colorStr.toLowerCase()) {
-					game.playAt(-1, -1); // dummy move to advance to correct color
-				}
+			const lc = colorStr.toLowerCase();
+			const expectedColor =
+				lc === "b" || lc === "black" ? "black" :
+				lc === "w" || lc === "white" ? "white" :
+				null;
+
+			if (game.currentPlayer() !== expectedColor) {
 				game.pass();
+			}
+			if (!expectedColor) {
+				respond("? invalid color");
+				break;
+			}
+
+			if (moveStr.toLowerCase() === "pass") {
 				respond("");
 				break;
 			}
-			const { x, y } = gtpToCoords(moveStr);
 
-			// Adjust internal turn if out of sync
-			if (game.currentPlayer() !== colorStr.toLowerCase()) {
-				game.playAt(-1, -1); // dummy move to switch turn
+			let coords;
+			try {
+				coords = gtpToCoords(moveStr, game.boardSize);
+			} catch {
+				respond("? invalid coordinates");
+				break;
+			}
+
+			if (!coords || typeof coords.x !== "number" || typeof coords.y !== "number") {
+				respond("? invalid move");
+				break;
+			}
+
+			const { x, y } = coords;
+
+			if (x < 0 || y < 0 || x >= game.boardSize || y >= game.boardSize) {
+				respond("? move out of bounds");
+				break;
 			}
 
 			const success = game.playAt(y, x);
@@ -102,16 +126,26 @@ rl.on("line", (line) => {
 			break;
 		}
 
-
 		case "genmove": {
-			const color = args[0].toLowerCase(); // "b" or "w"
-			if (game.currentPlayer() !== (color === "b" ? "black" : "white")) {
+			const lc = args[0].toLowerCase();
+			const expectedColor =
+				lc === "b" || lc === "black" ? "black" :
+				lc === "w" || lc === "white" ? "white" :
+				null;
+
+			if (!expectedColor) {
+				respond("? invalid color");
+				break;
+			}
+			if (game.currentPlayer() !== expectedColor) {
 				game.pass();
 			}
-			const move = generateMove(game, coordsToGtp, randomMode);
+
+			const move = generateMove(game, randomMode);
 			respond(move);
 			break;
 		}
+
 
 
 		case "quit":
@@ -119,7 +153,7 @@ rl.on("line", (line) => {
 			break;
 
 		default:
-			respond("? unknown command");
+			respond(`? unknown command: ${line}`);
 	}
 });
 
